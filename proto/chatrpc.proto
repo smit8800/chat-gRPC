@@ -4,14 +4,18 @@ package chat;
 option go_package = "./proto";
 
 service Chat {
-    rpc SendMessage(stream MessageSend) returns (stream MessageRecieve);
+    rpc SendMessage(stream MessageSend) returns (stream MessageFlag);
+    rpc RecieveMessage(stream MessageFlag) returns (stream MessageRecieve);
 }
 
 message MessageSend {
     string text = 1;
 }
-
 message MessageRecieve {
     string text = 1;
+}
+
+message MessageFlag {
+    string flag = 1;
 }
 

@@ -20,20 +20,20 @@ func NewChatServer() *ChatServer {
 	return &ChatServer{}
 }
 
-func (cs *ChatServer) SendMessage(stream proto.Chat_SendMessageServer) error {
+func (cs *ChatServer) RecieveMessage(stream proto.Chat_RecieveMessageServer) error {
 	l := log.New(os.Stdout, "", log.LstdFlags)
 
+	req, err := stream.Recv()
+	if req.Flag != "1" {
+		fmt.Printf(req.Flag)
+		fmt.Printf("Client has left!")
+		return nil
+	}
+	if err == io.EOF {
+		fmt.Printf("Client has left!")
+		return nil
+	}
 	for {
-		req, err := stream.Recv()
-		if err == io.EOF {
-			fmt.Printf("Client has left!")
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		fmt.Printf("Client: %s\n", req.Text)
-
 		// Simulate server input
 		scanner := bufio.NewScanner(os.Stdin)
 		fmt.Print("Server Message: ")
@@ -43,11 +43,23 @@ func (cs *ChatServer) SendMessage(stream proto.Chat_SendMessageServer) error {
 		res := &proto.MessageRecieve{
 			Text: serverMessage,
 		}
-		err = stream.Send(res)
+		err := stream.Send(res)
 		if err != nil {
 			l.Fatalf("Error in Sending")
 			return err
 		}
+	}
+}
+
+func (cs *ChatServer) SendMessage(stream proto.Chat_SendMessageServer) error {
+	//l := log.New(os.Stdout, "", log.LstdFlags)
+
+	for {
+		req, err := stream.Recv()
+		if err != nil {
+			return err
+		}
+		fmt.Printf("\nClient: %s\n", req.Text)
 	}
 }
 

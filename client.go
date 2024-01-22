@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"sync"
 
 	"google.golang.org/grpc"
 
@@ -27,14 +28,40 @@ func main() {
 	client := proto.NewChatClient(conn)
 
 	// Call the SendMessage RPC
-	stream, err := client.SendMessage(context.Background())
+	streamSend, err := client.SendMessage(context.Background())
+	streamRecieve, err := client.RecieveMessage(context.Background())
 	if err != nil {
 		l.Fatalf("Error creating stream: %v", err)
 	}
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		flag := &proto.MessageFlag{
+			Flag: "1",
+		}
+		if err := streamRecieve.Send(flag); err != nil {
+			l.Fatalf("Error sending message: %v", err)
+		}
+		for {
+			// Receive and print responses from the server stream.
+			res, err := streamRecieve.Recv()
+			if err != nil {
+				l.Printf(", Error receiving response: %v", err)
+				break
+			}
+			message := res.GetText()
+			if strings.ToUpper(message) == "CLOSE" {
+				break
+			}
+			fmt.Printf("\nServer: %s\n", message)
+		}
+		streamRecieve.CloseSend()
+		wg.Done()
+	}()
 
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
-		fmt.Print("Message: ")
+		fmt.Print("\nMessage: ")
 		scanner.Scan()
 		messageText := scanner.Text()
 
@@ -42,24 +69,19 @@ func main() {
 			Text: messageText,
 		}
 		if strings.ToUpper(messageText) == "CLOSE" {
+			if err := streamSend.Send(message); err != nil {
+				l.Fatalf("Error sending message: %v", err)
+			}
 			break
 		}
 
-		if err := stream.Send(message); err != nil {
+		if err := streamSend.Send(message); err != nil {
 			l.Fatalf("Error sending message: %v", err)
 		}
-
-		// Receive and print responses from the server stream.
-		res, err := stream.Recv()
-		if err != nil {
-			l.Printf(", Error receiving response: %v", err)
-			break
-		}
-		fmt.Printf("Server: %s\n", res.GetText())
 	}
-
+	wg.Wait()
 	// Read messages from the command prompt and send them
 
 	// Close the stream
-	stream.CloseSend()
+	streamSend.CloseSend()
 }
